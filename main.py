@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service as ChromeService
-import pymongo
+# import pymongo
 from scrape_experiences import extract_experience_html_data, extract_linkedin_experience
 from scrape_education import extract_linkedin_education, extract_html_data
 from scrape_post import extract_post_html_data, extract_user_post_data
@@ -23,19 +23,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException, ElementClickInterceptedException, NoSuchElementException 
 import logging 
 from selenium.webdriver.chrome.options import Options
-
-''' Mongo Connection '''
-mongo_client_url = os.getenv('mongo_client_url')
-mongo_client = pymongo.MongoClient(mongo_client_url) 
-db_name = os.getenv('db_name')
-db = mongo_client[db_name] 
-collection_name = os.getenv('table_name')
-all_linked_data = db[collection_name]
-
-''' Access Email Ids and Password '''
-
-# email = os.getenv('email')
-# password = os.getenv('password')   
+ 
 
 # Configure the logging
 logging.basicConfig(
@@ -45,12 +33,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'    # Date and time format
 ) 
  
-try:  
-    # chrome_options = Options()
-    # chrome_options.add_argument("--headless")  # Enable headless mode
-    # chrome_options.add_argument("--no-sandbox")
-    # chrome_options.add_argument("--disable-dev-shm-usage") 
-    # driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
+try:   
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
     print("WebDriver started successfully.")
 except Exception as e:
@@ -281,15 +264,14 @@ def scraper_data(url, driver, user_name, user_id):
     experience_html, experience_file_created = extract_experience_html_data(f'{url}/details/experience/', file, driver) 
     # experiences = extract_linkedin_experience(file)
 
-    wait(5)
+    # wait(5)
     users_post_html, users_post_file_created  = extract_post_html_data(f'{url}/recent-activity/all/', file, driver) 
     
     # post_data = extract_user_post_data(url, file, user_name) 
     
     html = { 
         "experience_html": experience_html,
-        "education_html": education_html,
-        "post_html": users_post_html
+        "education_html": education_html 
     }
 
     # data = {
@@ -314,29 +296,30 @@ def scraper_data(url, driver, user_name, user_id):
     try:
         ''' Checking record already exist or not if exist then update otherwise insert it '''
         # Define your filter and the new data
-        filter_query = {'linkedin_url': url}  # The filter to check if the record exists, e.g., by _id
+        # filter_query = {'linkedin_url': url}  # The filter to check if the record exists, e.g., by _id
         # new_data = {'$set': {"user_id": user_id, "linkedin_url": url, "user_name": user_name, "data": html, "dumps": data}}  # Data to insert or update
         # new_data = {'$set': {"user_id": user_id, "linkedin_url": url, "user_name": user_name, "data": data, "dumps": html, "personal": personal}}  # Data to insert or update
-        new_data = {'$set': {"user_id": user_id, "linkedin_url": url, "user_name": user_name, "dumps": html, "personal": personal}}  # Data to insert or update
+        # new_data = {'$set': {"user_id": user_id, "linkedin_url": url, "user_name": user_name, "dumps": html, "personal": personal}}  # Data to insert or update
 
         # Perform the upsert operation
-        result = all_linked_data.update_one(filter_query, new_data, upsert=True)
+        # result = all_linked_data.update_one(filter_query, new_data, upsert=True)
 
        
 
         # Check the result
-        if result.matched_count > 0: 
-            record_saved = 1 
-        elif result.upserted_id is not None: 
-            record_saved = 1
-        else:
-            record_saved = 2
-        return record_saved, education_file_created, experience_file_created, users_post_file_created
+        # if result.matched_count > 0: 
+        #     record_saved = 1 
+        # elif result.upserted_id is not None: 
+        #     record_saved = 1
+        # else:
+        #     record_saved = 2
+        record_saved = 1 
+        return record_saved, education_file_created, experience_file_created
         # test_linkedin_data.insert_one({"data": html, "dumps": data})
         # print(f"Data for {name} inserted successfully into MongoDB.")
     except Exception as e:
         logging.error("An error occurred while inserting data into MongoDB: %s", e) 
-        return 2, education_file_created, experience_file_created, users_post_file_created 
+        return 2, education_file_created, experience_file_created 
  
 counter = 1
  
@@ -355,21 +338,20 @@ try:
                 csv_file = "scrapping_status_all.csv"  
                 df = pd.read_csv(csv_file)
                 df.drop_duplicates(inplace = True) 
-                pending_posts_df = df[df['experience_file'] == 'Not Started']   
+                pending_posts_df = df[df['common'] == 'Not Started']   
                 
                 for index, row in pending_posts_df.iterrows():   
-                    if row['Lead Linkedin Url'] != '':
-                        linkd_url = row['Lead Linkedin Url']  
+                    if row['Link'] != '':
+                        linkd_url = row['Link']  
                         status, education_f_created, experience_f_created, users_post_f_created = scraper_data(linkd_url, driver, row['Lead Full Name'], index) 
                         result_output = "Yes" if status == 1 else "No"
                          
-                        df.at[index, 'experience_file'] = "Yes" if experience_f_created == 1 else "No"
-                        df.at[index, 'education_file'] = "Yes" if education_f_created == 1 else "No"
-                        df.at[index, 'posts_file'] = "Yes" if users_post_f_created == 1 else "No"
+                        df.at[index, 'education_file'] = "Yes" if experience_f_created == 1 else "No"
+                        df.at[index, 'experience_file'] = "Yes" if education_f_created == 1 else "No" 
                         df.at[index, 'record_saved'] = "Yes" if status == 1 else "No"
                         print("Index: ", index, "Exp: ", experience_f_created, "Edu: ",  education_f_created, "Post: ",  users_post_f_created, "Inserted: ",  status)
                         ''' Update user record has been saved successfully ''' 
-                        df.to_csv('scrapping_status_all.csv', index=False)  
+                        df.to_csv('User.csv', index=False)  
                         
                         if index%2 == 0: 
                             time.sleep(5)  
@@ -379,14 +361,12 @@ try:
             else:
                 csv_file = os.getenv('read_data_from_csv')
                 df = pd.read_csv(csv_file)  
-                df_selected = df[['Lead Full Name', 'Lead Linkedin Url']].copy()        
+                df_selected = df[['Link']].copy()        
                 df_selected.loc[:, 'experience_file'] = 'Not Started'
-                df_selected.loc[:, 'education_file'] = 'Not Started'
-                df_selected.loc[:, 'posts_file'] = 'Not Started' 
+                df_selected.loc[:, 'education_file'] = 'Not Started' 
                 df_selected.loc[:, 'record_saved'] = 'Not Started' 
                 df_selected.loc[:, 'experience_data'] = 'Not Started'
-                df_selected.loc[:, 'education_data'] = 'Not Started'
-                df_selected.loc[:, 'posts_data'] = 'Not Started'  
+                df_selected.loc[:, 'education_data'] = 'Not Started' 
                  
                 output_file = 'scrapping_status_all.csv'
                 df_selected.to_csv(output_file, index=False)  
@@ -456,66 +436,21 @@ except Exception as e:
 finally: 
     # driver.quit()
     ''' Saved record in db ''' 
-    def save_scrape_data(url, user_name, user_id): 
+    def save_scrape_data(url, user_id): 
     
         file = url_to_filename(f'{url}') 
         education = extract_linkedin_education(file)  
-        experiences = extract_linkedin_experience(file)  
-        post_data = extract_user_post_data(url, file, user_name)  
+        experiences = extract_linkedin_experience(file)   
 
         data = {
             "experience" : experiences, 
-            "education" : education,
-            "post" : post_data,
-        } 
-
-        ''' Checking record already exist or not if exist then update otherwise insert it '''
-        # Define your filter and the new data
-        filter_query = {'linkedin_url': url}  # The filter to check if the record exists, e.g., by _id
-
-        try:
-            new_data = {'$set': {"data.experience": experiences}}
-            # Perform the upsert operation
-            result = all_linked_data.update_one(filter_query, new_data, upsert=True)
-            # Check the result
-            if result.matched_count > 0: 
-                experiences_saved = 1 
-            elif result.upserted_id is not None: 
-                experiences_saved = 1
-            else:
-                experiences_saved = 2 
-        except Exception as e:
-            experiences_saved = 2
+            "education" : education 
+        }  
+ 
+        education_saved = 1
+        experiences_saved = 1    
             
-        try:
-            new_data = {'$set': {"data.education": education}}
-            # Perform the upsert operation
-            result = all_linked_data.update_one(filter_query, new_data, upsert=True)
-            # Check the result
-            if result.matched_count > 0: 
-                education_saved = 1 
-            elif result.upserted_id is not None: 
-                education_saved = 1
-            else:
-                education_saved = 2 
-        except Exception as e:
-            education_saved = 2
-            
-        try:
-            new_data = {'$set': {"data.post": post_data}}
-            # Perform the upsert operation
-            result = all_linked_data.update_one(filter_query, new_data, upsert=True)
-            # Check the result
-            if result.matched_count > 0: 
-                post_saved = 1 
-            elif result.upserted_id is not None: 
-                post_saved = 1
-            else:
-                post_saved = 2 
-        except Exception as e:
-            post_saved = 2
-            
-        return experiences_saved, education_saved, post_saved
+        return experiences_saved, education_saved
 
     if os.path.exists('scrapping_status_all.csv'):
         csv_file = "scrapping_status_all.csv"  
@@ -524,13 +459,12 @@ finally:
         pending_posts_df = df[df['record_saved'] == 'Yes']   
             
         for index, row in pending_posts_df.iterrows():   
-            if row['Lead Linkedin Url'] != '':
-                linkd_url = row['Lead Linkedin Url']  
-                experiences_status, education_status, post_status = save_scrape_data(linkd_url, row['Lead Full Name'], index)  
+            if row['Link'] != '':
+                linkd_url = row['Link']  
+                experiences_status, education_status, post_status = save_scrape_data(linkd_url, index)  
                 df.at[index, 'record_saved'] = "Updated exp, edu and post" if education_status == 1 else "Not updated exp, edu and post"
                 df.at[index, 'experience_data'] = "Yes" if experiences_status == 1 else "No"
-                df.at[index, 'education_data'] = "Yes" if education_status == 1 else "No"
-                df.at[index, 'posts_data'] = "Yes" if post_status == 1 else "No"
+                df.at[index, 'education_data'] = "Yes" if education_status == 1 else "No" 
                 
                 print("Index: ", index, "Exp: ", experiences_status, "Edu: ",  education_status, "Post: ",  post_status)
                 # print(index, experiences_status, education_status, post_status)
